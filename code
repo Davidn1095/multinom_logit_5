@@ -1,0 +1,62 @@
+# Define vectors for blood pressure categories, BMI categories, and their frequencies
+presion <- c("Optima", "Optima", "Optima", "Normal", "Normal", "Normal", "Alta", "Alta", "Alta", "Descompensada", "Descompensada", "Descompensada")
+imc <- c("Normal", "Sobrepeso", "Obesidad", "Normal", "Sobrepeso", "Obesidad", "Normal", "Sobrepeso", "Obesidad", "Normal", "Sobrepeso", "Obesidad")
+frecuencia <- c(41, 15, 0, 16, 12, 1, 8, 8, 1, 46, 44, 8)
+
+# Create a DataFrame from these vectors
+Chapman.Tabla.Frame <- data.frame(Presion = presion, IMC = imc, Frecuencia = frecuencia)
+
+# Print the DataFrame to the console
+print(Chapman.Tabla.Frame)
+
+# Convert 'Presion' and 'IMC' columns in the DataFrame to factors with specific levels
+Chapman.Tabla.Frame$Presion <- factor(Chapman.Tabla.Frame$Presion, levels = c("Optima", "Normal", "Alta", "Descompensada"))
+Chapman.Tabla.Frame$IMC <- factor(Chapman.Tabla.Frame$IMC, levels = c("Normal", "Sobrepeso", "Obesidad"))
+
+# Fit an ordinal logistic regression model using 'Presion' as dependent variable, 'IMC' as independent variable, and 'Frecuencia' as weights
+Ajuste.Ordinal.Tab <- polr(Presion ~ IMC, data = Chapman.Tabla.Frame, weights = Frecuencia)
+
+# Display a summary of the fitted model
+summary(Ajuste.Ordinal.Tab)
+
+# Extract coefficients from the model summary
+summary(Ajuste.Ordinal.Tab)$coefficients
+
+# Exponentiate the negative coefficients for the first two predictors (IMC categories) for interpretation
+exp(-summary(Ajuste.Ordinal.Tab)$coefficients[1:2, 1])
+
+# Exponentiate the coefficients for threshold levels to understand the changes in odds for moving from one category to the next
+exp(summary(Ajuste.Ordinal.Tab)$coefficients[3:5, 1])
+
+# Compare two ordinal logistic regression models using ANOVA: a baseline model with only an intercept and another model including IMC as a predictor
+anova(polr(Presion ~ 1, data = Chapman.Tabla.Frame, weights = Frecuencia), polr(Presion ~ IMC, data = Chapman.Tabla.Frame, weights = Frecuencia))
+
+# Predict the probabilities for each category for each observation in the model
+predict(Ajuste.Ordinal.Tab, type = "probs")
+
+# Predict the class (category of 'Presion') for each observation
+predict(Ajuste.Ordinal.Tab, type = "class")
+
+# Create a contingency table comparing actual 'Presion' categories with predicted ones, accounting for frequencies
+table(rep(Chapman.Tabla.Frame$Presion, Chapman.Tabla.Frame$Frecuencia), rep(predict(Ajuste.Ordinal.Tab, type = "class"), Chapman.Tabla.Frame$Frecuencia))
+
+# Define observed frequencies and predicted probabilities
+frecuencias <- c(41, 16, 8, 46, 15, 12, 8, 44, 0, 1, 1, 8)
+probabilidades <- c(0.3693694, 0.1441441, 0.0720721, 0.4144144, 0.1898734, 0.1518987, 0.1012658, 0.556962, 0, 0.1, 0.1, 0.8)
+
+# Exclude cases where observed frequencies are zero
+indices <- frecuencias > 0
+frecuencias_validas <- frecuencias[indices]
+probabilidades_validas <- probabilidades[indices]
+
+# Calculate the log-likelihood for the valid cases
+log_verosimilitud <- sum(frecuencias_validas * log(probabilidades_validas))
+
+# Calculate the deviance for the saturated model
+deviance_saturado <- -2 * log_verosimilitud
+
+# Calculate the difference in deviance between the fitted model and the saturated model
+Estadistico <- Ajuste.Ordinal.Tab$deviance - deviance_saturado
+
+# Calculate the p-value for the test statistic using a chi-square test
+pchisq(Estadistico, 3, lower.tail = F)
